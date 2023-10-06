@@ -1,0 +1,73 @@
+# explicitly use v2 config format
+version = 2
+
+# runtime state information
+state = "/run/containerd"
+# set containerd as a subreaper on linux when it is not running as PID 1
+subreaper = true
+# set containerd's OOM score
+oom_score = -999
+
+# debug configuration
+[debug]
+  # reduce log level from info to warn
+  level = "warn"
+
+disabled_plugins = [
+  "io.containerd.snapshotter.v1.aufs",
+  "io.containerd.snapshotter.v1.btrfs",
+  "io.containerd.snapshotter.v1.zfs",
+]
+
+[timeouts]
+  "io.containerd.timeout.shim.cleanup" = "60s"
+  "io.containerd.timeout.shim.load" = "5s"
+  "io.containerd.timeout.shim.shutdown" = "60s"
+  "io.containerd.timeout.task.state" = "2s"
+
+[plugins]
+
+  [plugins."io.containerd.grpc.v1.cri"]
+    # use fixed sandbox image
+    sandbox_image = "registry.k8s.io/pause:3.9"
+    # allow hugepages controller to be missing
+    # see https://github.com/containerd/cri/pull/1501
+    tolerate_missing_hugepages_controller = true
+    # restrict_oom_score_adj indicates to limit the lower bound of OOMScoreAdj to
+    # the containerd's current OOMScoreAdj.
+    # This is useful when the containerd does not have permission to decrease OOMScoreAdj.
+    restrict_oom_score_adj = false
+    # max_concurrent_downloads restricts the number of concurrent downloads for each image.
+    max_concurrent_downloads = 20
+    # max_container_log_line_size is the maximum log line size in bytes for a container.
+    # Log line longer than the limit will be split into multiple lines. -1 means no limit.
+    max_container_log_line_size = -1
+
+    [plugins."io.containerd.grpc.v1.cri".cni]
+      bin_dir = "/opt/cni/bin"
+      conf_dir = "/etc/cni/net.d"
+
+    # allow pulling from registries using self-signed SSL certificates
+    [plugins."io.containerd.grpc.v1.cri".registry]
+      config_path = "/etc/containerd/certs.d"
+
+    [plugins."io.containerd.grpc.v1.cri".containerd]
+      # explicitly use default snapshotter so we can sed it in entrypoint
+      snapshotter = "overlayfs"
+      # explicit default here, as we're configuring it below
+      default_runtime_name = "runc"
+      disable_snapshot_annotations = false
+
+      [plugins."io.containerd.grpc.v1.cri".containerd.runtimes]
+        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc]
+          # set default runtime handler to v2, which has a per-pod shim
+          runtime_type = "io.containerd.runc.v2"
+          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.runc.options]
+            # use systemd cgroup by default
+            SystemdCgroup = true
+
+        [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.test-handler]
+          runtime_type = "io.containerd.runc.v2"
+
+          [plugins."io.containerd.grpc.v1.cri".containerd.runtimes.test-handler.options]
+            SystemdCgroup = true
