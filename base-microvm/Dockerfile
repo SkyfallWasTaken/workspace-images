@@ -92,7 +92,22 @@ RUN (systemctl disable disable apt-daily-upgrade.timer || true) && \
     rm /etc/systemd/system/timers.target.wants/* && \
     rm -f /etc/systemd/system/sysinit.target.wants/systemd-timesyncd.service
 
-## Gitpod integration (supervisor, workspacekit)
+# disable root passwork for interactive login
 RUN passwd -d root
 
 RUN echo "CONTAINERD_NAMESPACE=k8s.io" >> /etc/environment
+
+# cleanup
+RUN rm -rf \
+    /run/log/journal \
+    /var/lib/containerd/* \
+    /usr/share/doc/* \
+    /usr/local/bin/bypass4netns \
+    /usr/local/bin/containerd-fuse-overlayfs-grpc \
+    /usr/local/bin/fuse-overlayfs \
+    /usr/local/bin/bypass4netnsd \
+    /usr/local/bin/containerd-rootless-setuptool.sh \
+    /usr/local/bin/rootlesskit \
+    /usr/local/bin/containerd-rootless.sh \
+    /usr/local/bin/ipfs \
+    /usr/local/bin/containerd-stargz-grpc
