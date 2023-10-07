@@ -1,61 +1,41 @@
-FROM ubuntu:22.04
+FROM fedora:38
 
 SHELL [ "/bin/bash", "-c" ]
-
-ENV DEBIAN_FRONTEND noninteractive
-
-COPY install-packages upgrade-packages /usr/bin/
-
-RUN yes | unminimize && \
-    install-packages \
-      locales && \
-    locale-gen en_US.UTF-8
 
 ENV LANG=en_US.UTF-8
 ENV LC_ALL=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 
-RUN yes | unminimize && \
-    install-packages \
-      bash-completion \
-      build-essential \
+RUN dnf install -y \
       htop \
-      iputils-ping \
+      iputils \
       jq \
       less \
       man-db \
       nano \
-      software-properties-common \
       sudo \
       time \
       lsof \
-      ssl-cert \
       fish \
       zsh \
       zip unzip \
-      bzip2 pigz xz-utils zstd \
-      systemd udev dbus cloud-init openssh-server ubuntu-minimal containerd \
-      ca-certificates curl gnupg && \
-    upgrade-packages
+      bzip2 pigz xz zstd \
+      systemd udev dbus dbus-daemon cloud-init openssh-server \
+      ca-certificates curl gnupg \
+      git \
+      passwd \
+      libsss* && \
+    dnf clean all
 
-RUN add-apt-repository -y ppa:git-core/ppa
-# https://github.com/git-lfs/git-lfs/blob/main/INSTALLING.md
-RUN curl -s https://packagecloud.io/install/repositories/github/git-lfs/script.deb.sh | bash && \
-    install-packages git git-lfs && \
-    git lfs install --system --skip-repo
-
-RUN install -m 0755 -d /etc/apt/keyrings && \
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg && \
-    chmod a+r /etc/apt/keyrings/docker.gpg && \
-    echo \
-      "deb [arch="$(dpkg --print-architecture)" signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-      "$(. /etc/os-release && echo "$VERSION_CODENAME")" stable" | tee /etc/apt/sources.list.d/docker.list
-
-RUN install-packages \
-    docker-ce \
-    docker-ce-cli \
-    docker-buildx-plugin \
-    docker-compose-plugin
+RUN dnf -y install dnf-plugins-core
+RUN dnf config-manager --add-repo https://download.docker.com/linux/fedora/docker-ce.repo -y
+RUN dnf install -y \
+      docker-ce \
+      docker-ce-cli \
+      containerd.io \
+      docker-buildx-plugin \
+      docker-compose-plugin && \
+    dnf clean all
 
 ENV NERDCTL_VERSION 1.6.0
 RUN curl -sSL "https://github.com/containerd/nerdctl/releases/download/v${NERDCTL_VERSION}/nerdctl-full-${NERDCTL_VERSION}-linux-amd64.tar.gz" -o - | tar -xz -C /usr/local && \
@@ -70,8 +50,7 @@ RUN rm -f /etc/systemd/system/default.target && \
 
 COPY rootfs/ /
 
-RUN rm /etc/systemd/system/multi-user.target.wants/containerd.service && \
-    ln -s /etc/systemd/system/containerd.service /etc/systemd/system/multi-user.target.wants/containerd.service
+RUN ln -s /etc/systemd/system/containerd.service /etc/systemd/system/multi-user.target.wants/containerd.service
 RUN ln -s /etc/systemd/system/buildkit.service /etc/systemd/system/multi-user.target.wants/buildkit.service
 RUN ln -s /etc/systemd/system/buildkit.socket /etc/systemd/system/multi-user.target.wants/buildkit.socket
 
@@ -87,10 +66,9 @@ RUN (systemctl disable disable apt-daily-upgrade.timer || true) && \
     (systemctl disable bluetooth.target || true) && \
     (systemctl disable ua-timer.timer || true) && \
     (systemctl disable ua-timer.service || true) && \
-    (systemctl disable ubuntu-advantage.service || true) && \
     (systemctl disable e2scrub_reap.service || true) && \
-    rm /etc/systemd/system/timers.target.wants/* && \
-    rm -f /etc/systemd/system/sysinit.target.wants/systemd-timesyncd.service
+    (systemctl disable sshd-keygen@rsa.service || true) && \
+    rm /etc/systemd/system/timers.target.wants/*
 
 # disable root passwork for interactive login
 RUN passwd -d root
@@ -111,3 +89,6 @@ RUN rm -rf \
     /usr/local/bin/containerd-rootless.sh \
     /usr/local/bin/ipfs \
     /usr/local/bin/containerd-stargz-grpc
+
+RUN systemctl enable dbus-broker.service
+RUN systemctl enable docker.service
