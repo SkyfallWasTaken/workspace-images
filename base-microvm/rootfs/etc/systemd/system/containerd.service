@@ -2,7 +2,7 @@
 Description=containerd container runtime
 Documentation=https://containerd.io
 # Ensure we start containerd after the raid arrays services run
-After=network.target local-fs.target
+After=network.target local-fs.target systemd-resolved.service
 # disable rate limiting
 StartLimitIntervalSec=0
 
